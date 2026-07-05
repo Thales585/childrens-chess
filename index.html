@@ -36,6 +36,7 @@
   .pc.w{color:#fff;text-shadow:0 0 2px #000,0 0 1px #000,0 1px 1px #000;}
   .pc.b{color:#232323;}
   .sq.sel{outline:4px solid var(--hl);outline-offset:-4px;}
+  .sq.lastmv-sq{box-shadow:inset 0 0 0 4px rgba(255,255,255,.5);}
   .dot{position:absolute;width:calc(var(--sq)*0.32);height:calc(var(--sq)*0.32);border-radius:50%;background:var(--move);opacity:.6;}
   .ring{position:absolute;inset:5%;border:4px solid var(--move);border-radius:50%;opacity:.65;}
   .dot.sym,.ring.sym{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:calc(var(--sq)*0.3);opacity:.98;}
@@ -133,6 +134,7 @@
       <div class="cap" id="capB"></div>
       <div class="valkey">Piece values — pawn 1 · knight/bishop 3 · rook 5 · queen 9</div>
       <label class="toggle"><input type="checkbox" id="hintsToggle" checked> Coaching tips (words + colours)</label>
+      <label class="toggle"><input type="checkbox" id="lastMoveToggle" checked> Show last move (arrow)</label>
       <button class="btn" id="themeBtn">🎨 Villain colours</button>
       <button class="btn" id="newBtn">New game / setup</button>
       <div class="links">
@@ -151,7 +153,7 @@
 const F=6, R=8;
 const GLYPH={P:"♟",R:"♜",N:"♞",B:"♝",Q:"♛",K:"♚"};
 let board, turn, ep, selected, legal, over, capturedByW, capturedByB, pendingPromo, repCounts, halfmove;
-let wBishop="b", bBishop="b", hintsOn=true, mode="2p", difficulty="easy", villainTheme=false;
+let wBishop="b", bBishop="b", hintsOn=true, mode="2p", difficulty="easy", villainTheme=false, showLastMove=true, lastMove=null;
 const VAL={P:1,N:3,B:3,R:5,Q:9,K:0};
 const sideName=c=>c==="w"?"White":"Black";
 
@@ -169,7 +171,7 @@ function initBoard(){
   }
   back(0,"w",wBishop); back(7,"b",bBishop);
   for(let f=0;f<F;f++){board[1][f]={t:"P",c:"w"};board[6][f]={t:"P",c:"b"};}
-  turn="w"; ep=null; selected=null; legal=[]; over=false;
+  turn="w"; ep=null; selected=null; legal=[]; over=false; lastMove=null;
   capturedByW=[]; capturedByB=[]; pendingPromo=null; repCounts={}; halfmove=0;
 }
 function material(c){let s=0;for(let r=0;r<R;r++)for(let f=0;f<F;f++){const p=board[r][f];if(p&&p.c===c)s+=VAL[p.t];}return s;}
@@ -391,6 +393,7 @@ function render(){
       const dark=((f+1)+ (r+1))%2===0;
       sq.className="sq "+(dark?"dark":"light");
       if(selected&&selected[0]===r&&selected[1]===f) sq.classList.add("sel");
+      if(showLastMove&&lastMove&&((lastMove.from[0]===r&&lastMove.from[1]===f)||(lastMove.to[0]===r&&lastMove.to[1]===f))) sq.classList.add("lastmv-sq");
       const p=board[r][f];
       if(p){const s=document.createElement("span"); s.className="pc "+p.c; s.textContent=GLYPH[p.t]; sq.appendChild(s);}
       const kk=keyOf(r,f);
@@ -400,6 +403,20 @@ function render(){
       sq.onclick=()=>onClick(r,f);
       boardEl.appendChild(sq);
     }
+  }
+  if(showLastMove && lastMove){
+    const s0=boardEl.querySelector('.sq'); const sqPx=s0?s0.offsetWidth:60;
+    const cx=f=>(f+0.5)*sqPx, cy=r=>(7-r+0.5)*sqPx;
+    const x1=cx(lastMove.from[1]), y1=cy(lastMove.from[0]), x2=cx(lastMove.to[1]), y2=cy(lastMove.to[0]);
+    const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||1, back=sqPx*0.30;
+    const ex=x2-dx/len*back, ey=y2-dy/len*back;
+    boardEl.insertAdjacentHTML('beforeend',
+      `<svg width="${6*sqPx}" height="${8*sqPx}" style="position:absolute;left:0;top:0;pointer-events:none;overflow:visible">`+
+      `<defs><marker id="cc-ah" markerWidth="5" markerHeight="5" refX="2.4" refY="2.5" orient="auto">`+
+      `<path d="M0.5,0.5 L4.5,2.5 L0.5,4.5 z" fill="#fff" stroke="#222" stroke-width="0.5" stroke-linejoin="round"/></marker></defs>`+
+      `<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="#222" stroke-width="${sqPx*0.14}" stroke-linecap="round" opacity="0.85"/>`+
+      `<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-width="${sqPx*0.08}" stroke-linecap="round" marker-end="url(#cc-ah)"/>`+
+      `</svg>`);
   }
   const pip=document.getElementById("pip"); pip.style.background=turn==="w"?"#fff":"#232323"; pip.style.borderColor=turn==="w"?"#bbb":"#232323";
   document.getElementById("turnText").textContent=(turn==="w"?"White":"Black")+" to move";
@@ -453,6 +470,7 @@ function doMove(mv,promoType){
   selected=null;
   turn=other(turn);
   legal=legalMoves(turn);
+  lastMove={from:[mv.from[0],mv.from[1]], to:[mv.to[0],mv.to[1]]};   // trace for the arrow
   const key=posKey(); repCounts[key]=(repCounts[key]||0)+1; // repetition tracker
   render();
   evaluate(key);
@@ -535,6 +553,7 @@ document.getElementById("startBtn").onclick=()=>{
   setStatus(""); render();
 };
 document.getElementById("hintsToggle").onchange=e=>{ hintsOn=e.target.checked; refreshHints(); };
+document.getElementById("lastMoveToggle").onchange=e=>{ showLastMove=e.target.checked; render(); };
 document.getElementById("themeBtn").onclick=toggleTheme;
 document.getElementById("newBtn").onclick=()=>{
   villainHide();
