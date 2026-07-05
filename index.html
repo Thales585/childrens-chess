@@ -7,7 +7,7 @@
 <style>
   :root{
     --light:#f5c39a; --dark:#51619c; --hl:#e6902e; --hl-soft:#e6902e55;
-    --ink:#2b2b2b; --panel:#ffffff; --bg:#faf6ec; --move:#d84545;
+    --ink:#2b2b2b; --panel:#ffffff; --bg:#faf6ec; --move:#d84545; --sq:clamp(38px,13.5vw,64px);
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink);
@@ -28,16 +28,30 @@
   .hint{font-size:12px;color:#8a7f63;margin-top:4px;}
   /* board */
   #game{display:none}
-  .board{display:grid;grid-template-columns:repeat(6,64px);grid-template-rows:repeat(8,64px);
+  .board{display:grid;grid-template-columns:repeat(6,var(--sq));grid-template-rows:repeat(8,var(--sq));
          border:3px solid var(--ink);border-radius:4px;position:relative;}
-  .sq{width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:44px;line-height:1;cursor:pointer;position:relative;user-select:none;}
+  .sq{width:var(--sq);height:var(--sq);display:flex;align-items:center;justify-content:center;font-size:calc(var(--sq)*0.66);line-height:1;cursor:pointer;position:relative;user-select:none;}
   .sq.light{background:var(--light)} .sq.dark{background:var(--dark)}
   .sq .pc{filter:drop-shadow(0 1px 1px #0003)}
   .pc.w{color:#fff;text-shadow:0 0 2px #000,0 0 1px #000,0 1px 1px #000;}
   .pc.b{color:#232323;}
   .sq.sel{outline:4px solid var(--hl);outline-offset:-4px;}
-  .dot{position:absolute;width:20px;height:20px;border-radius:50%;background:var(--move);opacity:.55;}
-  .ring{position:absolute;inset:4px;border:4px solid var(--move);border-radius:50%;opacity:.6;}
+  .dot{position:absolute;width:calc(var(--sq)*0.32);height:calc(var(--sq)*0.32);border-radius:50%;background:var(--move);opacity:.6;}
+  .ring{position:absolute;inset:5%;border:4px solid var(--move);border-radius:50%;opacity:.65;}
+  .dot.sym,.ring.sym{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:calc(var(--sq)*0.3);opacity:.98;}
+  .dot.sym{width:calc(var(--sq)*0.5);height:calc(var(--sq)*0.5);}
+  .streak{font-size:14px;color:#b4530b;font-weight:800;margin-bottom:8px;}
+  .villain{background:#3a2b45;color:#f3e6ff;border-radius:10px;padding:9px 12px;font-size:13.5px;line-height:1.35;margin-bottom:11px;display:none;}
+  .villain b{color:#e8b3ff;}
+  .modes{display:flex;gap:8px;margin:6px 0 4px;}
+  .modes button{flex:1;border:1px solid #cbb98f;background:#fff;border-radius:9px;padding:10px;font-size:13.5px;cursor:pointer;}
+  .modes button.on{background:var(--ink);color:#fff;}
+  .diffs{display:none;gap:6px;margin:6px 0 12px;}
+  .diffs.show{display:flex;}
+  .diffs button{flex:1;border:1px solid #cbb98f;background:#fff;border-radius:9px;padding:9px 4px;font-size:13px;cursor:pointer;}
+  .diffs button.on{background:#7d4a9e;color:#fff;}
+  .links{margin-top:12px;font-size:12.5px;display:flex;gap:16px;flex-wrap:wrap;}
+  .links a{color:#2a6f4a;text-decoration:none;font-weight:600;}
   .coord{position:absolute;font-size:10px;color:#00000066;pointer-events:none;}
   .coord.file{bottom:2px;right:4px;} .coord.rank{top:2px;left:4px;}
   .side{min-width:210px;background:var(--panel);border:1px solid #e4dcc7;border-radius:12px;padding:14px 16px;box-shadow:0 2px 10px #0000000d;}
@@ -73,6 +87,16 @@
   <div class="sub">A gentler chess: a 6-wide board, six pawns, and just one bishop and one knight each. Rooks in the corners, queen on <b>c</b>, king on <b>d</b>. Each player picks which side their bishop stands.</div>
 
   <div id="setup">
+    <h2>Choose your game</h2>
+    <div class="modes" id="modes">
+      <button data-mode="2p" class="on">👥 2 Players</button>
+      <button data-mode="villain">🦹 Play the Villain</button>
+    </div>
+    <div class="diffs" id="diffs">
+      <button data-diff="easy" class="on">🙂 Easy</button>
+      <button data-diff="hard">😠 Hard</button>
+      <button data-diff="extra">💀 Extra-Hard</button>
+    </div>
     <h2>Set up your bishops</h2>
     <p>Your lone bishop is stuck on one colour for the whole game. Put it on the <b>b-file</b> or the <b>e-file</b> — the knight takes the other square. Each player chooses on their own.</p>
     <div class="choice-row">
@@ -99,6 +123,8 @@
     <div class="side">
       <div class="turn"><span class="pip" id="pip"></span><span id="turnText">White to move</span></div>
       <div class="material" id="material">Material: <b>even</b></div>
+      <div class="streak" id="streak" style="display:none"></div>
+      <div class="villain" id="villain"></div>
       <div class="status" id="status"></div>
       <div class="warn" id="warn"></div>
       <div class="cap-label">White captured <span class="pts" id="capWpts"></span></div>
@@ -107,7 +133,12 @@
       <div class="cap" id="capB"></div>
       <div class="valkey">Piece values — pawn 1 · knight/bishop 3 · rook 5 · queen 9</div>
       <label class="toggle"><input type="checkbox" id="hintsToggle" checked> Coaching tips (words + colours)</label>
+      <button class="btn" id="themeBtn">🎨 Villain colours</button>
       <button class="btn" id="newBtn">New game / setup</button>
+      <div class="links">
+        <a href="#" id="tipLink" target="_blank" rel="noopener">☕ Support us</a>
+        <a href="#" id="mailLink" target="_blank" rel="noopener">✉ Parents: early access</a>
+      </div>
     </div>
   </div>
 
@@ -119,7 +150,7 @@
 const F=6, R=8;
 const GLYPH={P:"♟",R:"♜",N:"♞",B:"♝",Q:"♛",K:"♚"};
 let board, turn, ep, selected, legal, over, capturedByW, capturedByB, pendingPromo, repCounts, halfmove;
-let wBishop="b", bBishop="b", hintsOn=true;
+let wBishop="b", bBishop="b", hintsOn=true, mode="2p", difficulty="easy", villainTheme=false;
 const VAL={P:1,N:3,B:3,R:5,Q:9,K:0};
 const sideName=c=>c==="w"?"White":"Black";
 
@@ -244,6 +275,99 @@ function drawAfterMove(mv){
   return (repCounts[k]||0)>=2;                          // this move completes a threefold
 }
 
+/* ---------- Villain AI (negamax + alpha-beta over the existing engine) ---------- */
+function evalBoard(b){
+  let s=0;
+  for(let r=0;r<R;r++)for(let f=0;f<F;f++){
+    const p=b[r][f]; if(!p) continue;
+    let v=VAL[p.t]*100;
+    v += (3-Math.abs(f-2.5)) + (3-Math.abs(r-3.5)); // tiny centre nudge
+    s += p.c==="w" ? v : -v;
+  }
+  return s; // + = good for White (the hero)
+}
+function orderMoves(b,moves){
+  return moves.sort((a,z)=>
+    (b[z.to[0]][z.to[1]]?VAL[b[z.to[0]][z.to[1]].t]:0) -
+    (b[a.to[0]][a.to[1]]?VAL[b[a.to[0]][a.to[1]].t]:0));
+}
+function negamax(b,epSq,color,depth,alpha,beta){
+  if(depth===0) return (color==="w"?1:-1)*evalBoard(b);
+  const moves=legalMovesOn(b,color,epSq);
+  if(moves.length===0) return inCheck(b,color) ? -1000000-depth : 0; // mate bad, stalemate 0
+  orderMoves(b,moves);
+  let best=-Infinity;
+  for(const mv of moves){
+    const nb=apply(b,mv,"Q").nb;
+    const nep=mv.fl.dbl ? [ (mv.from[0]+mv.to[0])/2, mv.from[1] ] : null;
+    const sc=-negamax(nb,nep,other(color),depth-1,-beta,-alpha);
+    if(sc>best) best=sc;
+    if(best>alpha) alpha=best;
+    if(alpha>=beta) break;
+  }
+  return best;
+}
+function chooseVillainMove(){
+  const moves=legalMovesOn(board,"b",ep);
+  if(!moves.length) return null;
+  if(difficulty==="easy" && Math.random()<0.4) return moves[Math.floor(Math.random()*moves.length)]; // kid-friendly blunder
+  const depth = difficulty==="easy" ? 1 : difficulty==="hard" ? 3 : 4;
+  orderMoves(board,moves);
+  let best=moves[0], bestScore=-Infinity, alpha=-Infinity;
+  for(const mv of moves){
+    const nb=apply(board,mv,"Q").nb;
+    const nep=mv.fl.dbl ? [ (mv.from[0]+mv.to[0])/2, mv.from[1] ] : null;
+    const sc=-negamax(nb,nep,"w",depth-1,-Infinity,-alpha);
+    if(sc>bestScore){ bestScore=sc; best=mv; }
+    if(sc>alpha) alpha=sc;
+  }
+  return best;
+}
+function villainTurn(){
+  if(over||mode!=="villain"||turn!=="b") return;
+  setStatus("The Collector is plotting…");
+  setTimeout(()=>{
+    if(over||mode!=="villain"||turn!=="b") return;
+    const mv=chooseVillainMove(); if(!mv) return;
+    const willCap = !!board[mv.to[0]][mv.to[1]] || mv.fl.ep;
+    doMove(mv,"Q");
+    if(over) return;
+    villainSay(pickTaunt(inCheck(board,"w") ? "check" : willCap ? "capture" : "move"));
+  }, 350);
+}
+const VILLAIN_NAME="The Collector";
+const TAUNTS={
+  easy:{move:["Hee hee — my turn!","Where shall I plop this one?"],capture:["Ooh, shiny! Into my sack!","Mine now! Hee hee!"],check:["Boo! Mind your little king!"],win:["I win! More treasure for me!"],lose:["No! My hoard! Not fair!"]},
+  hard:{move:["I am building my collection.","Soon, all of these are mine."],capture:["Another for the hoard.","Thank you for the donation."],check:["Your king looks nervous…"],win:["All of it. Mine.","Predictable."],lose:["Impossible! You… you cheated!"]},
+  extra:{move:["I have already seen the end.","Struggle. It amuses me."],capture:["Careless — and now, mine.","I collect mistakes like yours."],check:["Your king kneels next."],win:["Everything ends in my hoard.","You never had a chance."],lose:["…how? Savour it. It won't happen twice."]}
+};
+function pickTaunt(kind){ const set=TAUNTS[difficulty]||TAUNTS.easy; const a=set[kind]||set.move; return a[Math.floor(Math.random()*a.length)]; }
+function villainSay(t){ const el=document.getElementById("villain"); el.innerHTML="<b>"+VILLAIN_NAME+":</b> "+t; el.style.display="block"; }
+function villainHide(){ const el=document.getElementById("villain"); if(el) el.style.display="none"; }
+
+/* ---------- session win-streaks (reset when the game/tab is closed) ---------- */
+function streakGet(){ return {cur:+(sessionStorage.getItem("cc_cur")||0), best:+(sessionStorage.getItem("cc_best")||0)}; }
+function streakBump(win){
+  let {cur,best}=streakGet(); cur = win ? cur+1 : 0; best=Math.max(best,cur);
+  try{ sessionStorage.setItem("cc_cur",cur); sessionStorage.setItem("cc_best",best); }catch(e){}
+  streakShow();
+}
+function streakShow(){
+  const el=document.getElementById("streak"); if(!el) return;
+  if(mode!=="villain"){ el.style.display="none"; return; }
+  const {cur,best}=streakGet(); el.style.display="block";
+  el.textContent="🔥 Win streak: "+cur+(best>0?"  (best "+best+")":"");
+}
+
+/* ---------- colour theme ---------- */
+function toggleTheme(){
+  villainTheme=!villainTheme;
+  const r=document.documentElement.style;
+  if(villainTheme){ r.setProperty("--light","#f4c9ea"); r.setProperty("--dark","#7d4a9e"); }
+  else { r.setProperty("--light","#f5c39a"); r.setProperty("--dark","#51619c"); }
+  if(typeof render==="function" && document.getElementById("game").style.display!=="none") render();
+}
+
 /* ---------- UI ---------- */
 const boardEl=document.getElementById("board");
 function keyOf(r,f){return r+"_"+f;}
@@ -254,11 +378,11 @@ function render(){
   const myMoves = selected ? legal.filter(m=>m.from[0]===selected[0]&&m.from[1]===selected[1]) : [];
   const strong=material(turn)>material(other(turn)), weak=material(turn)<material(other(turn));
   const drawCol = strong ? "#d84545" : weak ? "#2e9b52" : "#e6902e"; // red / green / amber
-  const destColor={};
+  const destColor={}, destSym={};
   for(const m of myMoves){
     const k=keyOf(m.to[0],m.to[1]);
-    const col = drawAfterMove(m) ? drawCol : NEUT;
-    if(!(k in destColor) || col!==NEUT) destColor[k]=col; // draw-colour wins if any variant draws
+    if(drawAfterMove(m)){ destColor[k]=drawCol; destSym[k]= strong?"!":weak?"✓":"="; } // shape cue, not colour alone
+    else if(!(k in destColor)){ destColor[k]=NEUT; }
   }
   for(let r=R-1;r>=0;r--){            // rank 8 top ... rank 1 bottom
     for(let f=0;f<F;f++){
@@ -269,7 +393,7 @@ function render(){
       const p=board[r][f];
       if(p){const s=document.createElement("span"); s.className="pc "+p.c; s.textContent=GLYPH[p.t]; sq.appendChild(s);}
       const kk=keyOf(r,f);
-      if(kk in destColor){const m=document.createElement("div"); m.className=p?"ring":"dot"; if(p) m.style.borderColor=destColor[kk]; else m.style.background=destColor[kk]; sq.appendChild(m);}
+      if(kk in destColor){const m=document.createElement("div"); m.className=p?"ring":"dot"; if(p) m.style.borderColor=destColor[kk]; else m.style.background=destColor[kk]; if(kk in destSym){m.textContent=destSym[kk]; m.classList.add("sym");} sq.appendChild(m);}
       if(f===0){const c=document.createElement("span");c.className="coord rank";c.textContent=(r+1);sq.appendChild(c);}
       if(r===0){const c=document.createElement("span");c.className="coord file";c.textContent="abcdef"[f];sq.appendChild(c);}
       sq.onclick=()=>onClick(r,f);
@@ -302,10 +426,12 @@ function drawEnd(reason){
     sub=`<span class="salv">${salvager} salvaged a draw! 🎉</span> &nbsp;·&nbsp; <span class="squ">${squanderer} squandered a win 😬</span>`;
   }
   setStatusHTML(`<b>Draw — ${reason}.</b><br><span class="sub2">${sub}</span>`);
+  if(mode==="villain") streakBump(false);   // a draw ends the streak
 }
 
 function onClick(r,f){
-  if(over){return;}
+  if(over) return;
+  if(mode==="villain" && turn==="b") return;   // hands off during the villain's move
   const p=board[r][f];
   if(selected){
     const mv=legal.find(m=>m.from[0]===selected[0]&&m.from[1]===selected[1]&&m.to[0]===r&&m.to[1]===f);
@@ -329,6 +455,7 @@ function doMove(mv,promoType){
   const key=posKey(); repCounts[key]=(repCounts[key]||0)+1; // repetition tracker
   render();
   evaluate(key);
+  if(!over && mode==="villain" && turn==="b") villainTurn();   // villain replies to the hero
 }
 
 function evaluate(key){
@@ -337,7 +464,11 @@ function evaluate(key){
   // --- game-ending states ---
   if(legal.length===0){
     over=true;
-    if(chk){ setStatusHTML(`<b>Checkmate — ${sideName(other(turn))} wins!</b> ♚`); }
+    if(chk){
+      const winner=other(turn);
+      setStatusHTML(`<b>Checkmate — ${sideName(winner)} wins!</b> ♚`);
+      if(mode==="villain"){ streakBump(winner==="w"); villainSay(pickTaunt(winner==="b"?"win":"lose")); }
+    }
     else { drawEnd("Stalemate"); }   // no legal move, not in check
     return;
   }
@@ -395,16 +526,31 @@ wireSeg("bseg","bhint",s=>bBishop=s);
 updateHints();
 
 document.getElementById("startBtn").onclick=()=>{
+  if(mode==="villain"){ bBishop = Math.random()<0.5 ? "b" : "e"; } // the villain picks its own side
   initBoard(); legal=legalMoves(turn); over=false; repCounts[posKey()]=1;
+  villainHide(); streakShow();
   document.getElementById("setup").style.display="none";
   document.getElementById("game").style.display="flex";
   setStatus(""); render();
 };
 document.getElementById("hintsToggle").onchange=e=>{ hintsOn=e.target.checked; refreshHints(); };
+document.getElementById("themeBtn").onclick=toggleTheme;
 document.getElementById("newBtn").onclick=()=>{
+  villainHide();
   document.getElementById("game").style.display="none";
   document.getElementById("setup").style.display="block";
 };
+(function(){
+  const modes=document.getElementById("modes"), diffs=document.getElementById("diffs");
+  modes.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    modes.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    mode=b.dataset.mode; diffs.classList.toggle("show", mode==="villain");
+  });
+  diffs.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    diffs.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    difficulty=b.dataset.diff;
+  });
+})();
 </script>
 </body>
 </html>
